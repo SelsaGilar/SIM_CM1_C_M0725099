@@ -1,0 +1,252 @@
+---
+title: "TUGAS_SIM_CSS"
+output: html_document
+---
+
+<style>
+body {
+  font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+  background-color: #f0f4f8; 
+  color: #1a2a3a;
+  font-size: 1.5em;
+}
+
+
+.list-group-item.active, .list-group-item.active:focus, .list-group-item.active:hover {
+  background-color: #1a5276 !important; 
+  border-color: #1a5276 !important;
+}
+
+#TOC {
+  border-left: 5px solid #1a5276;
+  background: #ffffff;
+  box-shadow: 0 4px 10px rgba(26, 82, 118, 0.1);
+}
+
+
+h1 {
+  background-color: #1a5276; 
+  color: #ffffff !important;
+  padding: 15px 25px;
+  border-radius: 5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 24px;
+}
+
+h2 {
+  color: #2980b9; 
+  border-bottom: 2px solid #1a5276;
+  padding-bottom: 5px;
+  margin-top: 30px;
+}
+
+h3 {
+  color: #3498db; 
+}
+
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+th {
+  background-color: #1a5276 !important;
+  color: white !important;
+  font-weight: bold;
+}
+
+tr:nth-child(even) {
+  background-color: #ebf5fb; 
+}
+
+tr:hover {
+  background-color: #d4e6f1 !important; 
+}
+
+
+code, pre {
+  background-color: #f8fbff !important;
+  border: 1px solid #d6eaf8;
+  color: #2c3e50;
+}
+</style>
+
+<div style="background: linear-gradient(90deg, #1a5276 0%, #3498db 100%); padding: 40px; border-radius: 10px; color: white; margin-bottom: 30px;">
+  <h2 style="color: white; border: none; margin: 0; padding: 0;">LAPORAN CASE METHOD 1</h2>
+  <p style="font-size: 1.1em; opacity: 0.9;">Analisis Database Sakila - Sistem Informasi Manajemen</p>
+  <div style="height: 2px; background: rgba(255,255,255,0.3); margin: 15px 0;"></div>
+<p style="margin: 0; font-size: 1.5em; font-weight: 500;"> 
+  Disusun oleh: <strong>Selsa Gilar Yona</strong> | NIM: <strong>M0725099</strong>
+</p>
+</div>
+
+# Pendahuluan
+Laporan ini disusun untuk memenuhi tugas **Case Method (CM) 1** pada mata kuliah Sistem Informasi Manajemen. Fokus utama laporan ini adalah mengeksplorasi dataset **Sakila** (database penyewaan film) untuk mengetahui performa pendapatan berdasarkan kategori film.
+
+```{r setup, message = FALSE, warning = FALSE}
+# Library yang diperlukan
+library(DBI)
+library(odbc) 
+library(ggplot2)
+library(dplyr)
+library(knitr)
+```
+
+# Koneksi Data
+Data diimpor langsung dari database MySQL Sakila.
+
+```{r}
+con <- dbConnect(odbc(),
+                Driver = "MySQL ODBC 8.0 ANSI Driver",
+                Server = "127.0.0.1",
+                UID = "root",
+                PWD = "glaryona8181",
+                Port = 3306,
+                database = "sakila"
+                   )
+```
+
+# Mengambil Data (Insight)
+Insight yang diambil adalah Performa Pendapatan per Kategori Film untuk melihat kategori mana yang paling menguntungkan.
+
+```{r}
+query <- "
+SELECT 
+    c.name AS Kategori,
+    SUM(p.amount) AS Total_Revenue,
+    COUNT(r.rental_id) AS Total_Rentals,
+    AVG(p.amount) AS Avg_Ticket_Price
+FROM category c
+JOIN film_category fc ON c.category_id = fc.category_id
+JOIN inventory i ON fc.film_id = i.film_id
+JOIN rental r ON i.inventory_id = r.inventory_id
+JOIN payment p ON r.rental_id = p.rental_id
+GROUP BY c.name
+ORDER BY Total_Revenue DESC"
+
+data <- dbGetQuery(con, query)
+```
+
+```{r}
+data
+```
+# Eksplorasi & Analisis Data
+
+## Rata-rata pendapatan per transaksi:
+Analisis ini menggunakan persamaan matematis untuk menghitung rata-rata pendapatan 
+
+$$ \bar{x} = \frac{\sum_{i=1}^{n} Revenue_i}{n} $$
+
+## Akumulasi Pendapatan
+
+Analisis ini menggunakan perhitungan matematis untuk total pendapatan:
+
+$$Total\ Revenue = \sum_{i=1}^{n} Amount_i$$
+
+## Summary Data
+```{r}
+summary(data)
+```
+
+## Tabel Performa Kategori
+Berikut adalah 10 kategori teratas berdasarkan total pendapatan.
+```{r}
+kable(head(data, 10), 
+      caption = "Tabel 1: Top 10 Kategori Film Terlaris",
+      col.names = c("Kategori", "Total Pendapatan ($)", "Total Penyewaan", "Rata-rata Harga"),
+      align = "c")
+```
+
+# Visualisasi Data
+
+## Hubungan Volume Penyewaan vs Pendapatan
+Visualisasi berikut menggambarkan hubungan antara jumlah penyewaan dan total pendapatan yang dihasilkan.
+```{r visualisasi_scatter, message = FALSE, warning = FALSE}
+ggplot(data, aes(x = Total_Rentals, y = Total_Revenue, color = Avg_Ticket_Price)) +
+  geom_point(size = 4, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", linetype = "dashed", se = FALSE, formula = y ~ x) +
+  scale_color_gradient(low = "#3498db", high = "#e74c3c") +
+  labs(title = "Hubungan Volume Penyewaan vs Pendapatan",
+       subtitle = "Warna menunjukkan rata-rata harga tiket",
+       x = "Jumlah Penyewaan (Rentals)",
+       y = "Total Pendapatan (Revenue)",
+       color = "Rata-rata Harga Tiket") +  
+  theme_minimal()
+```
+
+Berdasarkan grafik, garis merah menunjukkan tren positif yang kuat. Kategori dengan titik merah menunjukkan harga rata-rata penyewaan yang lebih tinggi, yang memberikan kontribusi signifikan meskipun volumenya tidak selalu yang tertinggi.
+
+## Kontribusi Pendapatan per Kategori
+```{r}
+data <- data %>%
+  mutate(Share = (Total_Revenue /sum(Total_Revenue)) * 100)
+
+ggplot(data, aes(x = "", y = Share, fill = Kategori)) + 
+  geom_bar(stat = "identity", width = 1, color = "white") + 
+  coord_polar("y", start = 0) +
+  scale_fill_manual(values = colorRampPalette(c("#D4E6F1", "#1A5276"))(nrow(data))) + 
+  theme_void() +
+  labs(title = "Kontribusi Pendapatan per Kategori",
+       subtitle = "Persentase setiap kategori terhadap total pendapatan",
+       fill = "Kategori Film") +
+  theme(
+    legend.position = "right", 
+    legend.title = element_text(face = "bold"),
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5)
+  ) +
+  geom_text(aes(label = paste0(round(Share, 1), "%")), 
+            position = position_stack(vjust = 0.5), 
+            color = "black", size = 3)
+```
+
+Berdasarkan pie chart, kontribusi setiap kategori secara visual, terlihat bahwa setiap potongan memiliki ukuran yang hampir sama besarnya. Hal ini menunjukkan bahwa bisnis Sakila tidak bergantung pada satu kategori tunggal saja, melainkan memiliki portofolio pendapatan yang sangat terdiversifikasi di berbagai genre film.
+
+Kategori Sports merupakan pemegang pangsa pasar terbesar dengan kontribusi 7,9%. Diikuti oleh kategori Sci-Fi (7,1%) dan Animation (6,9%). Ketiga kategori ini secara kolektif menyumbang hampir 22% dari total pendapatan, yang menandakan bahwa genre-genre ini adalah penggerak utama (revenue driver) bagi perusahaan.
+
+## Tren Volume Penyewaan Bulanan
+
+```{r tren, message = FALSE, warning = FALSE}
+tren_data <- dbGetQuery(con, "
+  SELECT 
+    DATE_FORMAT(rental_date, '%M') AS Bulan, 
+    COUNT(rental_id) AS Jumlah_Rental
+  FROM rental
+  WHERE rental_date BETWEEN '2005-05-01' AND '2005-08-31'
+  GROUP BY Bulan
+  ORDER BY MIN(rental_date)
+")
+
+tren_data$Bulan <- factor(tren_data$Bulan, levels = c("May", "June", "July", "August"))
+
+ggplot(tren_data, aes(x = Bulan, y = Jumlah_Rental, group = 1)) +
+  geom_line(color = "#2c3e50", size = 1.2) +
+  geom_point(color = "#e74c3c", size = 3) +
+  labs(title = "Tren Volume Penyewaan Bulanan",
+       x = "Bulan (Tahun 2005)",
+       y = "Total Transaksi") +
+  theme_minimal()
+```
+
+Berdasarkan grafik tersebut, terdapat lonjakan signifikan pada bulan Juli. Volume penyewan tertinggi terdapat pada bulan Juli, hal tersebut juga menunjukkan bahwa pendapatan tertinggi tahun 2005 ada di bulan Juli.
+
+## Peringkat Pendapatan Berdasarkan Kategori
+```{r}
+ggplot(data, aes(x = reorder(Kategori, -Total_Revenue), y = Total_Revenue, fill = Total_Revenue)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "#d4e6f1", high = "#1a5276") +
+  labs(title = "Peringkat Pendapatan Berdasarkan Kategori",
+       x = "Kategori Film",
+       y = "Total Pendapatan (USD)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+Berdasarkan analisis di atas, dapat ditarik kesimpulan bahwa kategori Sports merupakan penggerak utama pendapatan perusahaan dan terdapat hubungan linear positif yang kuat antara jumlah rental dan pendapatan.
+
+
